@@ -1,4 +1,3 @@
-#!C:\Python34\scrapper\Scripts
 import requests
 from bs4 import BeautifulSoup
 import ast
@@ -11,8 +10,11 @@ import pandas as pd
 import csv
 import re
 import pprint
-
+import configparser
 pp = pprint.PrettyPrinter(indent=4)
+
+config = configparser.ConfigParser()
+config.read('config.ini')
 
 def clean_string(s):
     s = re.sub(r'[^\x00-\x7F]+', '', s)
@@ -22,18 +24,12 @@ def clean_string(s):
 class KijijiScraper():
     def __init__(self):
         self.base_url = "https://www.kijiji.ca"
-        self.urls_to_scape = {'2010Mazda3':'https://www.kijiji.ca/b-gta-greater-toronto-area/2010-mazda-3/k0l1700272?dc=true',
-                              '370z!!!!':'https://www.kijiji.ca/b-gta-greater-toronto-area/370z/k0l1700272?dc=true',
-                              'WRX':'https://www.kijiji.ca/b-gta-greater-toronto-area/wrx/k0l1700272?dc=true',
-                              'HondaCivic2016':'https://www.kijiji.ca/b-gta-greater-toronto-area/honda-civic-2016/k0l1700272?dc=true',
-                              'hondaPrelude':'https://www.kijiji.ca/b-gta-greater-toronto-area/honda-prelude/k0l1700272?dc=true',
-                              'porsche':'https://www.kijiji.ca/b-gta-greater-toronto-area/porsche/k0l1700272?dc=true'}
-        #self.urls_to_scape = {'nexus phone':'https://www.kijiji.ca/b-gta-greater-toronto-area/nexus/k0l1700272?dc=true'}
-        self.scrape_delay = 30*60  # 600 = 10 mins
+        self.urls_to_scape = config._sections['urls_to_scape']
+        self.scrape_delay = int(config['env']['scrape_delay'])
         self.page_number = 1
         self.exclude_words=['free', 'wanted', 'parts', 'tires', 'brake', 'bumper', 'set','tire','wheel','wheels']
 
-    def ParseAd(self,html):  # Parses ad html trees and sorts relevant data into a dictionary
+    def ParseAd(self,html):
         ad_info = {}
         ad_info["Title"] = clean_string(html.find_all('a', {"class": "title"})[0].text.strip())
         ad_info["Url"] = 'http://www.kijiji.ca' + html.get("data-vip-url")
@@ -53,7 +49,6 @@ class KijijiScraper():
         new_df = pd.DataFrame.from_dict(new_dict, orient='index')
         result = pd.concat([new_df, old_ad_df])
         result.index.name = 'ad_id'
-        #with open(desc+'.csv', 'a') as f:
         result.to_csv(desc+'.csv')
     
     def load_ad_db(self, desc):
@@ -62,15 +57,16 @@ class KijijiScraper():
         df = pd.read_csv(desc+'.csv', header=0, delimiter=',', index_col='ad_id')
         return df
     
-    def MailAd(self, desc, ad_dict):  # Sends an email with a link and info of new ads
+    def MailAd(self, desc, ad_dict):
         if len(ad_dict) < 1:
             print(desc + " No new ads found ")
             return
         import smtplib
         from email.mime.text import MIMEText
-        sender = ''
-        passwd = ''
-        receivers = ['', '']
+        sender = config['env']['sender']
+        passwd = config['env']['passwd']
+        receivers = config['env']['receivers'].split(',')
+        print(sender,passwd,receivers)
         for receiver in receivers:
             count = len(ad_dict)
             if count > 0:
@@ -176,6 +172,5 @@ class KijijiScraper():
 
 if __name__ == "__main__":
     k = KijijiScraper()
-    #old_ad_dict = ReadAds(filename)
     k.run()
     
